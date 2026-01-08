@@ -43,16 +43,47 @@ app.get('/', (req, res) => {
 app.post('/registro', async (req, res) => {
   const { teamName, leaderName, email, phone, members, projectName, category, description } = req.body;
 
+  // category expected as an array of category names (strings)
   try {
-    const query = `
-      INSERT INTO registros (team_name, leader_name, email, phone, members, project_name, category, description)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    // Begin transaction
+    await pool.query('BEGIN');
+
+    // Insert registro (no 'category' column anymore)
+    const insertReg = `
+      INSERT INTO registros (team_name, leader_name, email, phone, members, project_name, description)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
-    const values = [teamName, leaderName, email, phone, members, projectName, category, description];
-
-    const result = await pool.query(query, values);
+    const values = [teamName, leaderName, email, phone, members, projectName, description];
+    const result = await pool.query(insertReg, values);
     const registro = result.rows[0];
+
+    // Handle categories: upsert into 'categorias' and link in 'registro_categorias'
+    if (Array.isArray(category) && category.length > 0) {
+      for (const rawName of category) {
+        const name = String(rawName || '').trim();
+        if (!name) continue;
+
+        // Try insert, ignore conflict
+        const insertCat = `INSERT INTO categorias (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING id`;
+        let catRes = await pool.query(insertCat, [name]);
+        let categoriaId = null;
+        if (catRes.rows && catRes.rows.length > 0) {
+          categoriaId = catRes.rows[0].id;
+        } else {
+          // If no returning row, the category existed already — fetch id
+          const sel = await pool.query('SELECT id FROM categorias WHERE name=$1 LIMIT 1', [name]);
+          if (sel.rows && sel.rows.length > 0) categoriaId = sel.rows[0].id;
+        }
+
+        if (categoriaId) {
+          // Insert relation, ignore duplicates
+          await pool.query(`INSERT INTO registro_categorias (registro_id, categoria_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [registro.id, categoriaId]);
+        }
+      }
+    }
+
+    await pool.query('COMMIT');
 
     // Emitir evento en tiempo real a clientes conectados
     io.emit('new-registration', registro);
@@ -60,7 +91,9 @@ app.post('/registro', async (req, res) => {
     res.status(201).json({ message: 'Registro exitoso', data: registro });
   } catch (error) {
     console.error('Error al registrar:', error);
-    res.status(500).json({ message: 'Error en el servidor' });
+    try { await pool.query('ROLLBACK'); } catch (e) { console.error('Rollback error', e); }
+    // send original error if it's a DB error with detail
+    res.status(500).json({ message: error?.message || 'Error en el servidor' });
   }
 });
 
