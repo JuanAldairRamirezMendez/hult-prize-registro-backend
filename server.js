@@ -11,6 +11,10 @@ const port = process.env.PORT || 3000;
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 // Crear servidor HTTP para Socket.IO
 const server = http.createServer(app);
@@ -33,6 +37,26 @@ const pool = new Pool({
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Cargar plantilla de correo de bienvenida (si existe)
+let welcomeTemplate = null;
+try {
+  const tplPath = path.join(__dirname, 'templates', 'welcome.html');
+  welcomeTemplate = fs.readFileSync(tplPath, 'utf8');
+} catch (e) {
+  console.warn('No se encontró plantilla de bienvenida en templates/welcome.html, se usará texto simple');
+}
+
+// Configurar transporter de nodemailer usando variables de entorno
+const mailTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587,
+  secure: process.env.SMTP_SECURE === 'true' || false,
+  auth: {
+    user: process.env.SMTP_USER || process.env.FROM_EMAIL,
+    pass: process.env.SMTP_PASS
+  }
+});
 
 // Ruta de prueba
 app.get('/', (req, res) => {
@@ -88,6 +112,40 @@ app.post('/registro', async (req, res) => {
     // Emitir evento en tiempo real a clientes conectados
     io.emit('new-registration', registro);
 
+    // Enviar correo(s) de bienvenida automáticamente (no bloquear la respuesta)
+    (async () => {
+      try {
+        const recipients = [registro.email];
+        const studentCode = req.body && req.body.studentCode;
+        if (studentCode) {
+          const studentEmail = `${String(studentCode).toLowerCase()}@utp.edu.pe`;
+          if (!recipients.includes(studentEmail)) recipients.push(studentEmail);
+        }
+
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+
+        const htmlBody = welcomeTemplate
+          ? welcomeTemplate.replace(/{{leaderName}}/g, registro.leader_name || '')
+                           .replace(/{{teamName}}/g, registro.team_name || '')
+                           .replace(/{{projectName}}/g, registro.project_name || '')
+                           .replace(/{{frontendUrl}}/g, frontendUrl)
+          : `<p>¡Bienvenido a Hult Prize UTP!</p><p>Hola ${registro.leader_name || ''}, gracias por registrarte con el equipo ${registro.team_name || ''}.</p>`;
+
+        const mailOptions = {
+          from: process.env.FROM_EMAIL || process.env.SMTP_USER || 'no-reply@hultprize.local',
+          to: recipients.join(','),
+          subject: 'Bienvenido a Hult Prize UTP',
+          text: `Bienvenido a Hult Prize UTP. Hola ${registro.leader_name || ''}, gracias por registrarte con el equipo ${registro.team_name || ''}. Visita ${frontendUrl} para más información.`,
+          html: htmlBody
+        };
+
+        await mailTransporter.sendMail(mailOptions);
+        console.log('Welcome email(s) sent to:', recipients.join(', '));
+      } catch (err) {
+        console.error('Error sending welcome emails:', err);
+      }
+    })();
+
     res.status(201).json({ message: 'Registro exitoso', data: registro });
   } catch (error) {
     console.error('Error al registrar:', error);
@@ -137,6 +195,40 @@ app.get('/sponsors', async (req, res) => {
   } catch (err) {
     console.error('Error fetching sponsors', err);
     res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+// Endpoint para verificar código de estudiante y enviar correo
+app.post('/verify-student', async (req, res) => {
+  const { studentCode, studentEmail, registroId } = req.body || {};
+  if (!studentCode || !studentEmail) return res.status(400).json({ message: 'Faltan campos studentCode o studentEmail' });
+
+  const token = crypto.randomBytes(24).toString('hex');
+  try {
+    const insert = `INSERT INTO student_verifications (registro_id, student_code, student_email, verification_token, sent_at, verified, created_at)
+                    VALUES ($1,$2,$3,$4, now(), false, now()) RETURNING *`;
+    const values = [registroId || null, studentCode, studentEmail, token];
+    const result = await pool.query(insert, values);
+    const verification = result.rows[0];
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+    const verifyLink = `${frontendUrl.replace(/\/$/,'')}/verify-student?token=${token}`;
+
+    const mailOptions = {
+      from: process.env.FROM_EMAIL || process.env.SMTP_USER || 'no-reply@hultprize.local',
+      to: studentEmail,
+      subject: 'Verificación de código de estudiante - Hult Prize UTP',
+      text: `Hola,\n\nSe ha solicitado verificar el código de estudiante ${studentCode}. Usa este enlace para verificar: ${verifyLink}\n\nSi no solicitaste esto, ignora este correo.`,
+      html: `<p>Hola,</p><p>Se ha solicitado verificar el código de estudiante <strong>${studentCode}</strong>. Haz clic en el siguiente enlace para verificar:</p><p><a href="${verifyLink}">${verifyLink}</a></p><p>Si no solicitaste esto, ignora este correo.</p>`
+    };
+
+    // Enviar correo (no bloquear el flujo si falla el envío, pero devolver error)
+    await mailTransporter.sendMail(mailOptions);
+
+    res.status(201).json({ message: 'Correo de verificación enviado', data: verification });
+  } catch (err) {
+    console.error('Error verify-student:', err);
+    res.status(500).json({ message: 'Error al procesar la verificación' });
   }
 });
 

@@ -48,6 +48,20 @@ CREATE TABLE IF NOT EXISTS registro_categorias (
   PRIMARY KEY (registro_id, categoria_id)
 );
 
+-- Tabla para verificaciones de código de estudiante
+CREATE TABLE IF NOT EXISTS student_verifications (
+  id SERIAL PRIMARY KEY,
+  registro_id INTEGER REFERENCES registros(id) ON DELETE CASCADE,
+  student_code VARCHAR(64) NOT NULL,
+  student_email VARCHAR(255) NOT NULL,
+  verification_token VARCHAR(255),
+  sent_at TIMESTAMP,
+  verified_at TIMESTAMP,
+  verified BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_student_code ON student_verifications(student_code);
+
 -- Si necesita migrar datos existentes desde la columna antigua `category` (ejemplo):
 -- 1) Crear temporalmente la tabla `categorias` y poblarla con valores únicos.
 -- 2) Insertar relaciones en `registro_categorias` convirtiendo valores CSV en filas.
