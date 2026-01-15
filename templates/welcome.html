@@ -1,21 +1,71 @@
 <!doctype html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Bienvenido a Hult Prize UTP</title>
   <style>
-    body { font-family: Arial, Helvetica, sans-serif; background:#f6f9fc; margin:0; padding:0; }
-    .container { max-width:600px; margin:24px auto; background:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(16,24,40,0.08); }
-    .header { background:linear-gradient(90deg,#0ea5a4,#06b6d4); color:white; padding:20px; }
-    .logo { font-weight:700; font-size:18px; }
-    .hero { padding:24px; }
-    h1 { margin:0 0 12px 0; font-size:20px; }
-    p { margin:8px 0; color:#334155; }
-    .button { display:inline-block; margin-top:16px; padding:12px 20px; background:#06b6d4; color:white; border-radius:6px; text-decoration:none; }
-    .footer { font-size:12px; color:#94a3b8; padding:16px; text-align:center; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f6f9fc;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 24px auto;
+      background: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(16, 24, 40, 0.08);
+    }
+
+    .header {
+      background: linear-gradient(90deg, #0ea5a4, #06b6d4);
+      color: white;
+      padding: 20px;
+    }
+
+    .logo {
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .hero {
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 12px 0;
+      font-size: 20px;
+    }
+
+    p {
+      margin: 8px 0;
+      color: #334155;
+    }
+
+    .button {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 12px 20px;
+      background: #06b6d4;
+      color: white;
+      border-radius: 6px;
+      text-decoration: none;
+    }
+
+    .footer {
+      font-size: 12px;
+      color: #94a3b8;
+      padding: 16px;
+      text-align: center;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div class="header">
@@ -24,10 +74,12 @@
     <div class="hero">
       <h1>¡Bienvenido a Hult Prize UTP!</h1>
       <p>Hola <strong>{{leaderName}}</strong>,</p>
-      <p>Gracias por registrar al equipo <strong>{{teamName}}</strong> con el proyecto <strong>{{projectName}}</strong>. Nos alegra que te unas a la comunidad.</p>
-      <a class="button" href="{{frontendUrl}}" target="_blank">Visitar Hult Prize UTP</a>
+      <p>Gracias por registrar al equipo <strong>{{teamName}}</strong> con el proyecto <strong>{{projectName}}</strong>.
+        Nos alegra que te unas a la comunidad.</p>
+      <a class="button" href="https://www.hultprize.org/" target="_blank">Visitar Hult Prize UTP</a>
     </div>
     <div class="footer">Si no solicitaste este correo, ignora este mensaje.</div>
   </div>
 </body>
+
 </html>
